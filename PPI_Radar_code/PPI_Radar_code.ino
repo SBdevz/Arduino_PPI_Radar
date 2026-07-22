@@ -13,10 +13,20 @@ int speakerPin = 12;
 
 float distance = 0;
 
+unsigned long DistanceTime = 0;
+unsigned long SignalDelay = 0;
+
+int active = 0;
+
+int direction = 1;
+
+int attached = 0;
+
 
 void setup() {
   myServo.attach(13);
   myServo.write(90);
+  myServo.detach();
   pinMode(switchPin, INPUT_PULLUP);
   pinMode(speakerPin, OUTPUT);
   pinMode(trigPin, OUTPUT);
@@ -37,12 +47,12 @@ void setup() {
   while (espSerial.available()) {
     Serial.write(espSerial.read());
   }
-  espSerial.println("AT+CWJAP=\"***\",\"***\"");
+  espSerial.println("AT+CWJAP=\"NH2025\",\"152207skb\"");
   delay(8000);
   while (espSerial.available()) {
     Serial.write(espSerial.read());
   }
-  espSerial.println("AT+CIPSTART=\"TCP\",\"192.168.**.**\",5000");
+  espSerial.println("AT+CIPSTART=\"TCP\",\"192.168.86.29\",5000");
   delay(500);
   while (espSerial.available()) {
     Serial.write(espSerial.read());
@@ -51,18 +61,32 @@ void setup() {
 
 
 void loop() {
+  unsigned long currentTime = millis();
   if (digitalRead(4) == LOW) {
     distance = getDistance();
-    myServo.write(0);
+    attach();
+    if (direction == 1) {
+      myServo.write(0);
+    }
+    if (direction == -1) {
+      myServo.write(180);
+    }
     if (distance <= 10 && distance > 0) {
       espSerial.println("AT+CIPSEND=6");
-      delay(500);
-      espSerial.print("Motion");
-      play('b', 4);
-      play('a', 6);
+      if (currentTime - SignalDelay >= 500) {
+        SignalDelay = currentTime;
+        distance = getDistance();
+        espSerial.print("Motion");
+        play('b', 4);
+        play('a', 6);
+      }
     }
   } else {
-    myServo.write(90);
+      myServo.detach();
+    }
+  if (currentTime - DistanceTime >= 3000) {
+    DistanceTime = currentTime;
+    direction = direction * -1;
   }
 }
 
@@ -70,6 +94,8 @@ void loop() {
 float getDistance() {
   float echoTime;
   float calculatedDistance;
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
@@ -93,4 +119,11 @@ void play(char note, int beats) {
   tone(speakerPin, currentFrequency, beats * beatLength);
   delay(beats * beatLength);
   delay(50);
+}
+
+void attach() {
+  if (attached == 0) {
+    myServo.attach(13);
+    int attach = 1;
+  }
 }
